@@ -16,7 +16,7 @@ COMPAS = ["UP", "RIGHT", "DOWN", "LEFT"]
 screen_width, screen_height = 720, 480
 
 game_count = 0
-epsilon = 600
+epsilon = 2000
 
 r, g, b = random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)
 
@@ -107,16 +107,11 @@ def check_crash(x, y, snake):
     if x >= screen_width or y >= screen_height or x < 0 or y < 0:
         return 1
 
-    # if [x, y] in snake[1:]:
-    #     return 1
-    # else:
-    #     return 0
-
-    for idx, el in enumerate(snake[1:]):
-        if [x, y] == el:
-            return idx
+    if [x, y] in snake[1:]:
+        return 1
     else:
         return 0
+
 
 
 def get_ai_direction(agent_state, epsilon, game_count):
@@ -155,14 +150,14 @@ def interpretation_direction(direction, head_direction):
 def get_snake_STATE(head_x, head_y, food, snake):
 
     if direction == "UP":
-        danger_left = [head_x + BLOCK, head_y]
+        danger_left = [head_x - BLOCK, head_y]
         danger_straight = [head_x, head_y - BLOCK]
-        danger_right = [head_x - BLOCK, head_y]
+        danger_right = [head_x + BLOCK, head_y]
 
     if direction == "DOWN":
-        danger_left = [head_x - BLOCK, head_y]
+        danger_left = [head_x + BLOCK, head_y]
         danger_straight = [head_x, head_y + BLOCK]
-        danger_right = [head_x + BLOCK, head_y]
+        danger_right = [head_x - BLOCK, head_y]
 
     if direction == "RIGHT":
         danger_left = [head_x, head_y - BLOCK]
@@ -253,7 +248,7 @@ def plot(mit_score_series, score_series):
     plt.grid(False)
     plt.ylim(0, max(max(mit_score_series, default=0), max(score_series, default=0)) + 5)
     plt.draw()
-    plt.pause(0.1)
+    plt.pause(0.001)
 
 
 # ===================================
@@ -268,9 +263,9 @@ score_series = []
 mit_score_series = []
 
 model = nn.Sequential(
-    nn.Linear(7, 256),
+    nn.Linear(7, 1024),
     nn.ReLU(),
-    nn.Linear(256, 3),
+    nn.Linear(1024, 3),
 )
 model.to(device)
 optimizer = optim.Adam(model.parameters(), lr=0.0025)
@@ -300,7 +295,7 @@ while True:
                 )
 
     agent_state = get_snake_STATE(head_x, head_y, food, snake)
-    head_direction = get_ai_direction(agent_state, epsilon, game_count)
+    head_direction = get_ai_direction(agent_state, epsilon, game_count)    
 
     direction = interpretation_direction(direction, head_direction)
 
@@ -327,6 +322,7 @@ while True:
 
         if game_count % 50 == 0:
             plot(mit_score_series, score_series)
+
 
             weights = [layer.weight for layer in model if isinstance(layer, nn.Linear)]
 
