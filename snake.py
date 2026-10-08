@@ -33,12 +33,12 @@ SNAKE_COLOUR = (
 
 
 def reset(snake, direction, food, score, head_y, head_x, game_count):
-    game_count += 1
-    score = 0
     snake = [[100, 100], [100 + BLOCK, 100]]
-    food = spawn_food(snake)
     direction = "DOWN"
+    food = spawn_food(snake)
+    score = 0
     head_x, head_y = snake[0]
+    game_count += 1
 
     return snake, direction, food, score, head_y, head_x, game_count
 
@@ -47,13 +47,13 @@ def game_step(food, score, direction, head_x, head_y):
     reward = SURVIVAL_REWARD
 
     if direction == "DOWN":
-        head_y = head_y + BLOCK
+        head_y += BLOCK
     elif direction == "UP":
-        head_y = head_y - BLOCK
+        head_y -= BLOCK
     elif direction == "RIGHT":
-        head_x = head_x + BLOCK
+        head_x += BLOCK
     elif direction == "LEFT":
-        head_x = head_x - BLOCK
+        head_x -= BLOCK
 
     if (
         head_x >= SCREEN_WIDTH
@@ -99,7 +99,7 @@ def draw_frame(snake, food):
     clock.tick(FPS)
 
 
-def check_crash(x, y, snake):
+def is_crash(x, y, snake):
     if x >= SCREEN_WIDTH or y >= SCREEN_HEIGHT or x < 0 or y < 0:
         return 1
 
@@ -172,9 +172,9 @@ def get_state(head_x, head_y, food, snake):
 
     danger = []
 
-    danger.append(check_crash(danger_left[0], danger_left[1], snake))
-    danger.append(check_crash(danger_straight[0], danger_straight[1], snake))
-    danger.append(check_crash(danger_right[0], danger_right[1], snake))
+    danger.append(is_crash(danger_left[0], danger_left[1], snake))
+    danger.append(is_crash(danger_straight[0], danger_straight[1], snake))
+    danger.append(is_crash(danger_right[0], danger_right[1], snake))
 
     general_state = []
 
@@ -211,18 +211,20 @@ def get_state(head_x, head_y, food, snake):
     return state
 
 
-def agent_train(agent_state, action, agent_new_state, reward, gameover):
+def agent_train(agent_state, action, agent_new_state, reward, is_game_over):
     agent_state = torch.tensor(agent_state, dtype=torch.float).unsqueeze(0)
-    agent_new_state = torch.tensor(agent_new_state, dtype=torch.float).unsqueeze(0)
+    agent_new_state = torch.tensor(
+            agent_new_state, dtype=torch.float
+    ).unsqueeze(0)
     action = torch.tensor(action, dtype=torch.long).unsqueeze(0)
     reward = torch.tensor(reward, dtype=torch.float).unsqueeze(0)
-    gameover = torch.tensor(gameover, dtype=torch.float).unsqueeze(0)
+    is_game_over = torch.tensor(is_game_over, dtype=torch.float).unsqueeze(0)
 
     pred = model(agent_state)
     target = pred.clone()
 
     Q_new = reward[0]
-    if not gameover[0]:
+    if not is_game_over[0]:
         Q_new = reward[0] + TRAINER_GAMMA * torch.max(model(agent_new_state))
 
     target[0][torch.argmax(action).item()] = Q_new
@@ -247,7 +249,11 @@ def plot(mean_score_series, score_series):
     plt.xlabel("Game number")
     plt.ylabel("Score")
     plt.grid(False)
-    plt.ylim(0, max(max(mean_score_series, default=0), max(score_series, default=0)) + 5)
+    plt.ylim(
+            0, 
+            max(max(mean_score_series, default=0), 
+            max(score_series, default=0)) + 5
+    )
     plt.draw()
     plt.pause(0.001)
 
@@ -297,7 +303,6 @@ while True:
             if event.key == pygame.K_TAB:
                 render = True
 
-
             if event.key == pygame.K_BACKSPACE:
                 snake, direction, food, score, head_y, head_x, game_count = reset(
                     snake, direction, food, score, head_y, head_x, game_count
@@ -308,18 +313,18 @@ while True:
 
     direction = decode_turn(direction, action)
 
-    gameover, reward, food, score, direction, head_x, head_y = game_step(
+    is_game_over, reward, food, score, direction, head_x, head_y = game_step(
         food, score, direction, head_x, head_y
     )
 
-    if render == True:
+    if render:
         draw_frame(snake, food)
 
     agent_new_state = get_state(head_x, head_y, food, snake)
 
-    agent_train(agent_state, action, agent_new_state, reward, gameover)
+    agent_train(agent_state, action, agent_new_state, reward, is_game_over)
 
-    if gameover:
+    if is_game_over:
         score_series.append(score)
 
         total = 0
