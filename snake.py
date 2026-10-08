@@ -33,66 +33,229 @@ SNAKE_COLOUR = (
 )
 
 
-def reset(game_count):
-    snake = [[100, 100], [100 + BLOCK, 100]]
-    direction = "DOWN"
-    food = spawn_food(snake)
-    score = 0
-    game_count+=1
+class SnakeGame:
+    def __init__(self):
+        self.game_count = 0
+        self.reset()
 
-    return snake, direction, food, score, game_count
+    def reset(self):
+        self.snake = [[100, 100], [100 + BLOCK, 100]]
+        self.direction = "DOWN"
+        self.food = spawn_food(self.snake)
+        self.score = 0
+        self.game_count+=1
 
+    def game_step(self):
+        reward = SURVIVAL_REWARD
+        
+        head_x, head_y = self.snake[0]
 
-def game_step(food, score, direction, snake):
-    reward = SURVIVAL_REWARD
-    
-    head_x, head_y = snake[0]
+        if self.direction == "DOWN":
+            head_y += BLOCK
+        elif self.direction == "UP":
+            head_y -= BLOCK
+        elif self.direction == "RIGHT":
+            head_x += BLOCK
+        elif self.direction == "LEFT":
+            head_x -= BLOCK
+        
+        if is_crash(head_x, head_y, self.snake):
+            reward = DEATH_REWARD
+            return True, reward
 
-    if direction == "DOWN":
-        head_y += BLOCK
-    elif direction == "UP":
-        head_y -= BLOCK
-    elif direction == "RIGHT":
-        head_x += BLOCK
-    elif direction == "LEFT":
-        head_x -= BLOCK
-    
-    if is_crash(head_x, head_y, snake):
-        reward = DEATH_REWARD
-        return True, reward, food, score
+        self.snake.insert(0, [head_x, head_y])
 
-    snake.insert(0, [head_x, head_y])
+        if self.snake[0] != self.food:
+            self.snake.pop()
+        else:
+            self.score += 1
+            reward = EATING_REWARD
+            self.food = spawn_food(self.snake)
 
-    if snake[0] != food:
-        snake.pop()
-    else:
-        score += 1
-        reward = EATING_REWARD
-        food = spawn_food(snake)
+        return False, reward
+ 
+    def get_state(self):
+        head_x, head_y = self.snake[0]
 
-    return False, reward, food, score
+        if self.direction == "UP":
+            danger_left = [head_x - BLOCK, head_y]
+            danger_straight = [head_x, head_y - BLOCK]
+            danger_right = [head_x + BLOCK, head_y]
 
+        if self.direction == "DOWN":
+            danger_left = [head_x + BLOCK, head_y]
+            danger_straight = [head_x, head_y + BLOCK]
+            danger_right = [head_x - BLOCK, head_y]
 
-def draw_frame(snake, food, score, display, font, clock):
-    display.fill("white")
+        if self.direction == "RIGHT":
+            danger_left = [head_x, head_y - BLOCK]
+            danger_straight = [head_x + BLOCK, head_y]
+            danger_right = [head_x, head_y + BLOCK]
 
-    for x_position, y_position in snake:
-        pygame.draw.rect(
-            display,
-            SNAKE_COLOUR,
-            pygame.Rect(x_position, y_position, BLOCK, BLOCK),
-            width=4,
+        if self.direction == "LEFT":
+            danger_left = [head_x, head_y + BLOCK]
+            danger_straight = [head_x - BLOCK, head_y]
+            danger_right = [head_x, head_y - BLOCK]
+
+        danger = []
+
+        danger.append(is_crash(danger_left[0], danger_left[1], self.snake))
+        danger.append(is_crash(
+            danger_straight[0], danger_straight[1], self.snake)
+        )
+        danger.append(is_crash(
+            danger_right[0], danger_right[1], self.snake)
         )
 
-    pygame.draw.rect(
-            display, 'black', pygame.Rect(food[0], food[1], BLOCK, BLOCK)
-    )
+        general_state = []
 
-    score_text = font.render(f"Score: {score}", True, "black")
-    display.blit(score_text, (25, 25))
+        general_state.append((head_x > self.food[0]))
+        general_state.append((head_x < self.food[0]))
+        general_state.append((head_y > self.food[1]))
+        general_state.append((head_y < self.food[1]))
 
-    pygame.display.flip()
-    clock.tick(FPS)
+        if self.direction == "RIGHT":
+            general_state = [
+                general_state[2],
+                general_state[3],
+                general_state[1],
+                general_state[0],
+            ]
+        if self.direction == "DOWN":
+            general_state = [
+                general_state[1],
+                general_state[0],
+                general_state[3],
+                general_state[2],
+            ]
+        if self.direction == "LEFT":
+            general_state = [
+                general_state[3],
+                general_state[2],
+                general_state[0],
+                general_state[1],
+            ]
+
+        state = []
+        state = danger + general_state
+
+        return state       
+
+
+class Render:
+    def __init__(self):
+        self.render = True
+        self.display = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        self.clock = pygame.time.Clock()
+        self.font = pygame.font.Font(None, 24)
+
+    def draw_frame(self, SnakeGame):
+        self.display.fill("white")
+
+        for x_position, y_position in SnakeGame.snake:
+            pygame.draw.rect(
+                self.display,
+                SNAKE_COLOUR,
+                pygame.Rect(x_position, y_position, BLOCK, BLOCK),
+                width=4,
+            )
+
+        pygame.draw.rect(
+                self.display, 'black', pygame.Rect(
+                    SnakeGame.food[0], SnakeGame.food[1], BLOCK, BLOCK
+                )
+        )
+
+        score_text = self.font.render(f"Score: {SnakeGame.score}", True, "black")
+        self.display.blit(score_text, (25, 25))
+
+        pygame.display.flip()
+        self.clock.tick(FPS)
+
+
+class Agent:
+    def __init__(self):
+        self.model = nn.Sequential(
+            nn.Linear(7, INNER_LAYER),
+            nn.ReLU(),
+            nn.Linear(INNER_LAYER, 3),
+        )
+        self.optimizer = optim.Adam(self.model.parameters(), LEARNING_RATE)
+        self.criterion = nn.MSELoss()
+
+
+    def choose_action(self, agent_state, game_count):
+        final_move = [0, 0, 0]
+        state0 = torch.tensor(agent_state, dtype=torch.float)
+
+        prediction = self.model(state0)
+        move = torch.argmax(prediction).item()
+
+        if EXPLORATION_GAMES - game_count > random.randint(0, EXPLORATION_GAMES):
+            move = random.randint(0, 2)
+
+        final_move[move] = 1
+        return final_move
+
+    def decode_turn(self, direction, action):
+        index = COMPASS.index(direction)
+
+        if action[1] == 1:
+            return direction
+        if action[0] == 1:
+            return COMPASS[index - 1]
+        if action[2] == 1:
+            return COMPASS[(index + 1) % len(COMPASS)]
+
+
+    def agent_train(
+            self, agent_state, action, agent_new_state,
+            reward, is_game_over
+    ):
+        agent_state = torch.tensor(agent_state, dtype=torch.float).unsqueeze(0)
+        agent_new_state = torch.tensor(
+                agent_new_state, dtype=torch.float
+        ).unsqueeze(0)
+        action = torch.tensor(action, dtype=torch.long).unsqueeze(0)
+        reward = torch.tensor(reward, dtype=torch.float).unsqueeze(0)
+        is_game_over = torch.tensor(is_game_over, dtype=torch.float).unsqueeze(0)
+
+        pred = self.model(agent_state)
+        target = pred.clone()
+
+        q_new = reward[0]
+        if not is_game_over[0]:
+            q_new = reward[0] + TRAINER_GAMMA * torch.max(
+                    self.model(agent_new_state)
+            )
+
+        target[0][torch.argmax(action).item()] = q_new
+
+        self.optimizer.zero_grad()
+        loss = self.criterion(target, pred)
+        loss.backward()
+        self.optimizer.step()
+
+
+class Plot:
+    def __init__(self):
+        self.score_series = []
+        self.mean_score_series = []
+
+    def update(self):
+        plt.clf()
+        plt.plot(self.score_series, marker="", linestyle="-", color="b")
+        plt.plot(self.mean_score_series, marker="", linestyle="-", color="r")
+        plt.title("learning...")
+        plt.xlabel("Game number")
+        plt.ylabel("Score")
+        plt.grid(False)
+        top_score = max(max(self.mean_score_series, default=0),
+                         max(self.score_series, default=0)
+        ) 
+        plt.ylim(0, top_score + 5)
+        plt.draw()
+        plt.pause(0.001)
 
 
 def is_crash(x, y, snake):
@@ -117,215 +280,62 @@ def spawn_food(snake):
     return food
 
 
-def choose_action(agent_state, game_count, model):
-    final_move = [0, 0, 0]
-    state0 = torch.tensor(agent_state, dtype=torch.float)
-
-    prediction = model(state0)
-    move = torch.argmax(prediction).item()
-
-    if EXPLORATION_GAMES - game_count > random.randint(0, EXPLORATION_GAMES):
-        move = random.randint(0, 2)
-
-    final_move[move] = 1
-    return final_move
-
-
-def decode_turn(direction, action):
-    index = COMPASS.index(direction)
-
-    if action[1] == 1:
-        return direction
-    if action[0] == 1:
-        return COMPASS[index - 1]
-    if action[2] == 1:
-        return COMPASS[(index + 1) % len(COMPASS)]
-
-
-def get_state(food, snake, direction):
-    head_x, head_y = snake[0]
-
-    if direction == "UP":
-        danger_left = [head_x - BLOCK, head_y]
-        danger_straight = [head_x, head_y - BLOCK]
-        danger_right = [head_x + BLOCK, head_y]
-
-    if direction == "DOWN":
-        danger_left = [head_x + BLOCK, head_y]
-        danger_straight = [head_x, head_y + BLOCK]
-        danger_right = [head_x - BLOCK, head_y]
-
-    if direction == "RIGHT":
-        danger_left = [head_x, head_y - BLOCK]
-        danger_straight = [head_x + BLOCK, head_y]
-        danger_right = [head_x, head_y + BLOCK]
-
-    if direction == "LEFT":
-        danger_left = [head_x, head_y + BLOCK]
-        danger_straight = [head_x - BLOCK, head_y]
-        danger_right = [head_x, head_y - BLOCK]
-
-    danger = []
-
-    danger.append(is_crash(danger_left[0], danger_left[1], snake))
-    danger.append(is_crash(danger_straight[0], danger_straight[1], snake))
-    danger.append(is_crash(danger_right[0], danger_right[1], snake))
-
-    general_state = []
-
-    general_state.append((head_x > food[0]))
-    general_state.append((head_x < food[0]))
-    general_state.append((head_y > food[1]))
-    general_state.append((head_y < food[1]))
-
-    if direction == "RIGHT":
-        general_state = [
-            general_state[2],
-            general_state[3],
-            general_state[1],
-            general_state[0],
-        ]
-    if direction == "DOWN":
-        general_state = [
-            general_state[1],
-            general_state[0],
-            general_state[3],
-            general_state[2],
-        ]
-    if direction == "LEFT":
-        general_state = [
-            general_state[3],
-            general_state[2],
-            general_state[0],
-            general_state[1],
-        ]
-
-    state = []
-    state = danger + general_state
-
-    return state
-
-
-def agent_train(
-        agent_state, action, agent_new_state,
-        reward, is_game_over, model, optimizer, criterion
-):
-    agent_state = torch.tensor(agent_state, dtype=torch.float).unsqueeze(0)
-    agent_new_state = torch.tensor(
-            agent_new_state, dtype=torch.float
-    ).unsqueeze(0)
-    action = torch.tensor(action, dtype=torch.long).unsqueeze(0)
-    reward = torch.tensor(reward, dtype=torch.float).unsqueeze(0)
-    is_game_over = torch.tensor(is_game_over, dtype=torch.float).unsqueeze(0)
-
-    pred = model(agent_state)
-    target = pred.clone()
-
-    q_new = reward[0]
-    if not is_game_over[0]:
-        q_new = reward[0] + TRAINER_GAMMA * torch.max(model(agent_new_state))
-
-    target[0][torch.argmax(action).item()] = q_new
-
-    optimizer.zero_grad()
-    loss = criterion(target, pred)
-    loss.backward()
-    optimizer.step()
-
-
-# ===================================
-
-
-plt.ion()
-
-
-def plot(mean_score_series, score_series):
-    plt.clf()
-    plt.plot(score_series, marker="", linestyle="-", color="b")
-    plt.plot(mean_score_series, marker="", linestyle="-", color="r")
-    plt.title("learning...")
-    plt.xlabel("Game number")
-    plt.ylabel("Score")
-    plt.grid(False)
-    top_score =  max(max(mean_score_series, default=0),
-                     max(score_series, default=0)
-    ) 
-    plt.ylim(0, top_score + 5)
-    plt.draw()
-    plt.pause(0.001)
-
-
-# ===================================
-
-
-pygame.init()
-
-
-display = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-clock = pygame.time.Clock()
-font = pygame.font.Font(None, 24)
-
-
-game_count = 0
-score_series = []
-mean_score_series = []
-
-
-model = nn.Sequential(
-    nn.Linear(7, INNER_LAYER),
-    nn.ReLU(),
-    nn.Linear(INNER_LAYER, 3),
-)
-optimizer = optim.Adam(model.parameters(), LEARNING_RATE)
-criterion = nn.MSELoss()
-
-
-snake, direction, food, score, game_count = reset(game_count)
-
 
 render = True
 
+def main():
+    pygame.init()
+    plt.ion()
+    
+    game = SnakeGame()
+    renderer = Render()
+    agent = Agent()
+    plot = Plot()
+    
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
 
-while True:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            pygame.quit()
-            sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    renderer.render = False
 
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_SPACE:
-                render = False
+                if event.key == pygame.K_TAB:
+                    renderer.render = True
 
-            if event.key == pygame.K_TAB:
-                render = True
+                if event.key == pygame.K_BACKSPACE:
+                    game.reset() 
 
-            if event.key == pygame.K_BACKSPACE:
-                snake, direction, food, score, game_count = reset(game_count)
+        agent_state = game.get_state()
+        action = agent.choose_action(agent_state, game.game_count)
 
-    agent_state = get_state(food, snake, direction)
-    action = choose_action(agent_state, game_count, model)
+        game.direction = agent.decode_turn(game.direction, action)
 
-    direction = decode_turn(direction, action)
+        is_game_over, reward = game.game_step()
 
-    is_game_over, reward, food, score = game_step(
-            food, score, direction, snake
-    )
+        if renderer.render:
+            renderer.draw_frame(game)
 
-    if render:
-        draw_frame(snake, food, score, display, font, clock)
+        agent_new_state = game.get_state()
 
-    agent_new_state = get_state(food, snake, direction)
+        agent.agent_train(agent_state, action, agent_new_state,
+                          reward, is_game_over
+        )
 
-    agent_train(agent_state, action, agent_new_state,
-                reward, is_game_over, model, optimizer, criterion
-    )
+        if is_game_over:
+            plot.score_series.append(game.score)
 
-    if is_game_over:
-        score_series.append(score)
+            plot.mean_score_series.append(
+                    sum(plot.score_series) / len(plot.score_series)
+            )
 
-        mean_score_series.append(sum(score_series) / len(score_series))
+            if game.game_count % PLOT_RATE == 0:
+                plot.update()
 
-        if game_count % PLOT_RATE == 0:
-            plot(mean_score_series, score_series)
+            game.reset()
 
-        snake, direction, food, score, game_count = reset(game_count)
+
+if __name__ == '__main__':
+    main()
