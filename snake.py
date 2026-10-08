@@ -1,4 +1,5 @@
 import random
+import sys
 
 import matplotlib.pyplot as plt
 import pygame
@@ -32,7 +33,7 @@ SNAKE_COLOUR = (
 )
 
 
-def reset():
+def reset(game_count):
     snake = [[100, 100], [100 + BLOCK, 100]]
     direction = "DOWN"
     food = spawn_food(snake)
@@ -55,16 +56,10 @@ def game_step(food, score, direction, snake):
         head_x += BLOCK
     elif direction == "LEFT":
         head_x -= BLOCK
-
-    if (
-        head_x >= SCREEN_WIDTH
-        or head_y >= SCREEN_HEIGHT
-        or head_x < 0
-        or head_y < 0
-        or [head_x, head_y] in snake[1:]
-    ):
+    
+    if is_crash(head_x, head_y, snake):
         reward = DEATH_REWARD
-        return True, reward, food, score, direction
+        return True, reward, food, score
 
     snake.insert(0, [head_x, head_y])
 
@@ -75,7 +70,7 @@ def game_step(food, score, direction, snake):
         reward = EATING_REWARD
         food = spawn_food(snake)
 
-    return False, reward, food, score, direction
+    return False, reward, food, score
 
 
 def draw_frame(snake, food, score, display, font, clock):
@@ -144,11 +139,7 @@ def decode_turn(direction, action):
     if action[0] == 1:
         return COMPASS[index - 1]
     if action[2] == 1:
-        if index + 1 == 4:
-            return COMPASS[0]
-        else:
-            return COMPASS[index + 1]
-
+        return COMPASS[(index + 1) % len(COMPASS)]
 
 def get_state(food, snake, direction):
     head_x, head_y = snake[0]
@@ -181,10 +172,10 @@ def get_state(food, snake, direction):
 
     general_state = []
 
-    general_state.append(int(head_x > food[0]))
-    general_state.append(int(head_x < food[0]))
-    general_state.append(int(head_y > food[1]))
-    general_state.append(int(head_y < food[1]))
+    general_state.append((head_x > food[0]))
+    general_state.append((head_x < food[0]))
+    general_state.append((head_y > food[1]))
+    general_state.append((head_y < food[1]))
 
     if direction == "RIGHT":
         general_state = [
@@ -288,7 +279,7 @@ optimizer = optim.Adam(model.parameters(), LEARNING_RATE)
 criterion = nn.MSELoss()
 
 
-snake, direction, food, score, game_count = reset()
+snake, direction, food, score, game_count = reset(game_count)
 
 
 render = True
@@ -297,7 +288,8 @@ render = True
 while True:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
-            exit()
+            pygame.quit()
+            sys.exit()
 
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
@@ -307,14 +299,14 @@ while True:
                 render = True
 
             if event.key == pygame.K_BACKSPACE:
-                snake, direction, food, score, game_count = reset()
+                snake, direction, food, score, game_count = reset(game_count)
 
     agent_state = get_state(food, snake, direction)
     action = choose_action(agent_state, game_count, model)
 
     direction = decode_turn(direction, action)
 
-    is_game_over, reward, food, score, direction = game_step(
+    is_game_over, reward, food, score = game_step(
             food, score, direction, snake
     )
 
@@ -330,14 +322,9 @@ while True:
     if is_game_over:
         score_series.append(score)
 
-        total = 0
-
-        for i in score_series:
-            total += i
-
-        mean_score_series.append(total / len(score_series))
+        mean_score_series.append(sum(score_series) / len(score_series))
 
         if game_count % PLOT_RATE == 0:
             plot(mean_score_series, score_series)
 
-        snake, direction, food, score, game_count = reset()
+        snake, direction, food, score, game_count = reset(game_count)
