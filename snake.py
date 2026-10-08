@@ -71,7 +71,7 @@ def game_step(food, score, direction, head_x, head_y):
         snake.pop()
     else:
         score += 1
-        reward = SURVIVAL_REWARD
+        reward = EATING_REWARD
         food = spawn_food(snake)
 
     return False, reward, food, score, direction, head_x, head_y
