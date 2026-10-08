@@ -26,8 +26,8 @@ COMPASS = ["UP", "RIGHT", "DOWN", "LEFT"]
 
 
 SNAKE_COLOUR = (
-        random.randint(0, 255), 
-        random.randint(0, 255), 
+        random.randint(0, 255),
+        random.randint(0, 255),
         random.randint(0, 255)
 )
 
@@ -121,7 +121,7 @@ def spawn_food(snake):
     return food
 
 
-def choose_action(agent_state, EXPLORATION_GAMES, game_count):
+def choose_action(agent_state, game_count):
     final_move = [0, 0, 0]
     state0 = torch.tensor(agent_state, dtype=torch.float)
 
@@ -223,9 +223,9 @@ def agent_train(agent_state, action, agent_new_state, reward, is_game_over):
     pred = model(agent_state)
     target = pred.clone()
 
-    Q_new = reward[0]
+    q_new = reward[0]
     if not is_game_over[0]:
-        Q_new = reward[0] + TRAINER_GAMMA * torch.max(model(agent_new_state))
+        q_new = reward[0] + TRAINER_GAMMA * torch.max(model(agent_new_state))
 
     target[0][torch.argmax(action).item()] = Q_new
 
@@ -309,7 +309,7 @@ while True:
                 )
 
     agent_state = get_state(head_x, head_y, food, snake)
-    action = choose_action(agent_state, EXPLORATION_GAMES, game_count)    
+    action = choose_action(agent_state, game_count)
 
     direction = decode_turn(direction, action)
 
