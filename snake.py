@@ -17,7 +17,7 @@ INNER_LAYER = 512
 TRAINER_GAMMA = 0.89
 LEARNING_RATE = 0.0025
 EXPLORATION_GAMES = 1000
-SURVIVAL_REWARD = 0.01
+SURVIVAL_REWARD = 0
 DEATH_REWARD = -10
 EATING_REWARD = 10
 
@@ -227,7 +227,7 @@ def agent_train(agent_state, action, agent_new_state, reward, is_game_over):
     if not is_game_over[0]:
         q_new = reward[0] + TRAINER_GAMMA * torch.max(model(agent_new_state))
 
-    target[0][torch.argmax(action).item()] = Q_new
+    target[0][torch.argmax(action).item()] = q_new
 
     optimizer.zero_grad()
     loss = criterion(target, pred)
@@ -249,11 +249,10 @@ def plot(mean_score_series, score_series):
     plt.xlabel("Game number")
     plt.ylabel("Score")
     plt.grid(False)
-    plt.ylim(
-            0, 
-            max(max(mean_score_series, default=0), 
-            max(score_series, default=0)) + 5
-    )
+    top_score =  max(max(mean_score_series, default=0),
+                     max(score_series, default=0)
+    ) 
+    plt.ylim(0, top_score + 5)
     plt.draw()
     plt.pause(0.001)
 
