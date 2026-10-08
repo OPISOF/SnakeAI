@@ -141,6 +141,7 @@ def decode_turn(direction, action):
     if action[2] == 1:
         return COMPASS[(index + 1) % len(COMPASS)]
 
+
 def get_state(food, snake, direction):
     head_x, head_y = snake[0]
 
