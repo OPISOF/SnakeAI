@@ -32,12 +32,12 @@ SNAKE_COLOUR = (
 )
 
 
-def reset(snake, direction, food, score, game_count):
+def reset():
     snake = [[100, 100], [100 + BLOCK, 100]]
     direction = "DOWN"
     food = spawn_food(snake)
     score = 0
-    game_count += 1
+    game_count+=1
 
     return snake, direction, food, score, game_count
 
@@ -78,7 +78,7 @@ def game_step(food, score, direction, snake):
     return False, reward, food, score, direction
 
 
-def draw_frame(snake, food):
+def draw_frame(snake, food, score, display, font, clock):
     display.fill("white")
 
     for x_position, y_position in snake:
@@ -122,7 +122,7 @@ def spawn_food(snake):
     return food
 
 
-def choose_action(agent_state, game_count):
+def choose_action(agent_state, game_count, model):
     final_move = [0, 0, 0]
     state0 = torch.tensor(agent_state, dtype=torch.float)
 
@@ -150,7 +150,7 @@ def decode_turn(direction, action):
             return COMPASS[index + 1]
 
 
-def get_state(food, snake):
+def get_state(food, snake, direction):
     head_x, head_y = snake[0]
 
     if direction == "UP":
@@ -214,7 +214,10 @@ def get_state(food, snake):
     return state
 
 
-def agent_train(agent_state, action, agent_new_state, reward, is_game_over):
+def agent_train(
+        agent_state, action, agent_new_state,
+        reward, is_game_over, model, optimizer, criterion
+):
     agent_state = torch.tensor(agent_state, dtype=torch.float).unsqueeze(0)
     agent_new_state = torch.tensor(
             agent_new_state, dtype=torch.float
@@ -285,9 +288,7 @@ optimizer = optim.Adam(model.parameters(), LEARNING_RATE)
 criterion = nn.MSELoss()
 
 
-snake, direction, food, score, game_count = reset(
-    [], "DOWN", [], 0, 0, 0, 0
-)
+snake, direction, food, score, game_count = reset()
 
 
 render = True
@@ -306,25 +307,25 @@ while True:
                 render = True
 
             if event.key == pygame.K_BACKSPACE:
-                snake, direction, food, score, game_count = reset(
-                    snake, direction, food, score, game_count
-                )
+                snake, direction, food, score, game_count = reset()
 
-    agent_state = get_state(food, snake)
-    action = choose_action(agent_state, game_count)
+    agent_state = get_state(food, snake, direction)
+    action = choose_action(agent_state, game_count, model)
 
     direction = decode_turn(direction, action)
 
     is_game_over, reward, food, score, direction = game_step(
-            food, score, direction
+            food, score, direction, snake
     )
 
     if render:
-        draw_frame(snake, food)
+        draw_frame(snake, food, score, display, font, clock)
 
-    agent_new_state = get_state(food, snake)
+    agent_new_state = get_state(food, snake, direction)
 
-    agent_train(agent_state, action, agent_new_state, reward, is_game_over)
+    agent_train(agent_state, action, agent_new_state,
+                reward, is_game_over, model, optimizer, criterion
+    )
 
     if is_game_over:
         score_series.append(score)
@@ -339,6 +340,4 @@ while True:
         if game_count % PLOT_RATE == 0:
             plot(mean_score_series, score_series)
 
-        snake, direction, food, score, game_count = reset(
-            snake, direction, food, score, game_count
-        )
+        snake, direction, food, score, game_count = reset()
