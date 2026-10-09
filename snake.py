@@ -28,7 +28,6 @@ COMPASS = ["UP", "RIGHT", "DOWN", "LEFT"]
 
 class SnakeGame:
     def __init__(self):
-        pygame.init()
         self.game_count = 0
         self.reset()
 
@@ -148,10 +147,8 @@ class SnakeGame:
 
  
 class Renderer:     
-    
-
     def __init__(self):
-        plt.ion()
+        pygame.init()
         self.enabled = True
         self.snake_colour = (
             random.randint(0, 255),
@@ -245,6 +242,7 @@ class Agent:
 
 class Plot:
     def __init__(self):
+        plt.ion()
         self.score_series = []
         self.mean_score_series = []
 
