@@ -26,15 +26,9 @@ EATING_REWARD = 10
 COMPASS = ["UP", "RIGHT", "DOWN", "LEFT"]
 
 
-SNAKE_COLOUR = (
-        random.randint(0, 255),
-        random.randint(0, 255),
-        random.randint(0, 255)
-)
-
-
 class SnakeGame:
     def __init__(self):
+        pygame.init()
         self.game_count = 0
         self.reset()
 
@@ -43,11 +37,12 @@ class SnakeGame:
         self.direction = "DOWN"
         self.food = spawn_food(self.snake)
         self.score = 0
-        self.game_count+=1
+        self.game_count += 1
 
-    def game_step(self):
+    def step(self, action):
         reward = SURVIVAL_REWARD
         
+        self.decode_turn(action)
         head_x, head_y = self.snake[0]
 
         if self.direction == "DOWN":
@@ -139,38 +134,59 @@ class SnakeGame:
         state = []
         state = danger + general_state
 
-        return state       
+        return state
 
+    def decode_turn(self, action):
+        index = COMPASS.index(self.direction)
 
-class Render:
+        if action[1] == 1:
+            pass
+        elif action[0] == 1:
+            self.direction = COMPASS[index - 1]
+        elif action[2] == 1:
+            self.direction = COMPASS[(index + 1) % len(COMPASS)]
+
+ 
+class Renderer:     
+    
+
     def __init__(self):
-        self.render = True
+        plt.ion()
+        self.enabled = True
+        self.snake_colour = (
+            random.randint(0, 255),
+            random.randint(0, 255),
+            random.randint(0, 255)
+        )
         self.display = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         self.clock = pygame.time.Clock()
         self.font = pygame.font.Font(None, 24)
 
-    def draw_frame(self, SnakeGame):
+    def draw_frame(self, game):
         self.display.fill("white")
 
-        for x_position, y_position in SnakeGame.snake:
+        for x_position, y_position in game.snake:
             pygame.draw.rect(
                 self.display,
-                SNAKE_COLOUR,
+                self.snake_colour,
                 pygame.Rect(x_position, y_position, BLOCK, BLOCK),
                 width=4,
             )
 
         pygame.draw.rect(
                 self.display, 'black', pygame.Rect(
-                    SnakeGame.food[0], SnakeGame.food[1], BLOCK, BLOCK
+                    game.food[0], game.food[1], BLOCK, BLOCK
                 )
         )
 
-        score_text = self.font.render(f"Score: {SnakeGame.score}", True, "black")
+        score_text = self.font.render(f"Score: {game.score}", True, "black")
         self.display.blit(score_text, (25, 25))
 
         pygame.display.flip()
         self.clock.tick(FPS)
+
+    def switch_render(self):
+        self.enabled = not self.enabled
 
 
 class Agent:
@@ -183,10 +199,9 @@ class Agent:
         self.optimizer = optim.Adam(self.model.parameters(), LEARNING_RATE)
         self.criterion = nn.MSELoss()
 
-
-    def choose_action(self, agent_state, game_count):
+    def choose_action(self, state, game_count):
         final_move = [0, 0, 0]
-        state0 = torch.tensor(agent_state, dtype=torch.float)
+        state0 = torch.tensor(state, dtype=torch.float)
 
         prediction = self.model(state0)
         move = torch.argmax(prediction).item()
@@ -197,36 +212,27 @@ class Agent:
         final_move[move] = 1
         return final_move
 
-    def decode_turn(self, direction, action):
-        index = COMPASS.index(direction)
-
-        if action[1] == 1:
-            return direction
-        if action[0] == 1:
-            return COMPASS[index - 1]
-        if action[2] == 1:
-            return COMPASS[(index + 1) % len(COMPASS)]
-
-
     def agent_train(
-            self, agent_state, action, agent_new_state,
+            self, state, action, next_state,
             reward, is_game_over
     ):
-        agent_state = torch.tensor(agent_state, dtype=torch.float).unsqueeze(0)
-        agent_new_state = torch.tensor(
-                agent_new_state, dtype=torch.float
+        state = torch.tensor(state, dtype=torch.float).unsqueeze(0)
+        next_state = torch.tensor(
+                next_state, dtype=torch.float
         ).unsqueeze(0)
         action = torch.tensor(action, dtype=torch.long).unsqueeze(0)
         reward = torch.tensor(reward, dtype=torch.float).unsqueeze(0)
-        is_game_over = torch.tensor(is_game_over, dtype=torch.float).unsqueeze(0)
+        is_game_over = torch.tensor(
+                is_game_over, dtype=torch.float
+        ).unsqueeze(0)
 
-        pred = self.model(agent_state)
+        pred = self.model(state)
         target = pred.clone()
 
         q_new = reward[0]
         if not is_game_over[0]:
             q_new = reward[0] + TRAINER_GAMMA * torch.max(
-                    self.model(agent_new_state)
+                    self.model(next_state)
             )
 
         target[0][torch.argmax(action).item()] = q_new
@@ -256,16 +262,22 @@ class Plot:
         plt.ylim(0, top_score + 5)
         plt.draw()
         plt.pause(0.001)
+    
+    def refresh_score(self, score):
+        self.score_series.append(score)
+        self.mean_score_series.append(
+                    sum(self.score_series) / len(self.score_series)
+        )
 
 
 def is_crash(x, y, snake):
     if x >= SCREEN_WIDTH or y >= SCREEN_HEIGHT or x < 0 or y < 0:
-        return 1
+        return True
 
     if [x, y] in snake[1:]:
-        return 1
+        return True
     else:
-        return 0
+        return False
 
 
 def spawn_food(snake):
@@ -280,15 +292,9 @@ def spawn_food(snake):
     return food
 
 
-
-render = True
-
 def main():
-    pygame.init()
-    plt.ion()
-    
     game = SnakeGame()
-    renderer = Render()
+    renderer = Renderer()
     agent = Agent()
     plot = Plot()
     
@@ -300,37 +306,31 @@ def main():
 
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
-                    renderer.render = False
+                    renderer.switch_render()
 
                 if event.key == pygame.K_TAB:
-                    renderer.render = True
+                    renderer.switch_render()
 
                 if event.key == pygame.K_BACKSPACE:
                     game.reset() 
 
-        agent_state = game.get_state()
-        action = agent.choose_action(agent_state, game.game_count)
+        state = game.get_state()
+        action = agent.choose_action(state, game.game_count)
 
-        game.direction = agent.decode_turn(game.direction, action)
+        is_game_over, reward = game.step(action)
 
-        is_game_over, reward = game.game_step()
-
-        if renderer.render:
+        if renderer.enabled:
             renderer.draw_frame(game)
 
-        agent_new_state = game.get_state()
+        next_state = game.get_state()
 
-        agent.agent_train(agent_state, action, agent_new_state,
+        agent.agent_train(state, action, next_state,
                           reward, is_game_over
         )
 
         if is_game_over:
-            plot.score_series.append(game.score)
-
-            plot.mean_score_series.append(
-                    sum(plot.score_series) / len(plot.score_series)
-            )
-
+            plot.refresh_score(game.score)
+            
             if game.game_count % PLOT_RATE == 0:
                 plot.update()
 
