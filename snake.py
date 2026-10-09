@@ -1,3 +1,4 @@
+import os
 import random
 import sys
 
@@ -13,11 +14,11 @@ BLOCK = 20
 FPS = 100
 PLOT_RATE = 100
 
-
 INNER_LAYER = 512
 TRAINER_GAMMA = 0.89
 LEARNING_RATE = 0.0025
 EXPLORATION_GAMES = 1000
+LIMIT_GAMES = 1000
 SURVIVAL_REWARD = 0
 DEATH_REWARD = -10
 EATING_REWARD = 10
@@ -28,7 +29,7 @@ COMPASS = ["UP", "RIGHT", "DOWN", "LEFT"]
 
 class SnakeGame:
     def __init__(self):
-        self.game_count = 0
+        self.count = 0
         self.reset()
 
     def reset(self):
@@ -36,7 +37,7 @@ class SnakeGame:
         self.direction = "DOWN"
         self.food = spawn_food(self.snake)
         self.score = 0
-        self.game_count += 1
+        self.count += 1
 
     def step(self, action):
         reward = SURVIVAL_REWARD
@@ -196,14 +197,14 @@ class Agent:
         self.optimizer = optim.Adam(self.model.parameters(), LEARNING_RATE)
         self.criterion = nn.MSELoss()
 
-    def choose_action(self, state, game_count):
+    def choose_action(self, state, count):
         final_move = [0, 0, 0]
         state0 = torch.tensor(state, dtype=torch.float)
 
         prediction = self.model(state0)
         move = torch.argmax(prediction).item()
 
-        if EXPLORATION_GAMES - game_count > random.randint(0, EXPLORATION_GAMES):
+        if EXPLORATION_GAMES - count > random.randint(0, EXPLORATION_GAMES):
             move = random.randint(0, 2)
 
         final_move[move] = 1
@@ -266,7 +267,10 @@ class Plot:
         self.mean_score_series.append(
                     sum(self.score_series) / len(self.score_series)
         )
-
+    
+    def save(self):
+        number = len(os.listdir('./runs'))
+        plt.savefig(f"./runs/run{number}")
 
 def is_crash(x, y, snake):
     if x >= SCREEN_WIDTH or y >= SCREEN_HEIGHT or x < 0 or y < 0:
@@ -300,7 +304,7 @@ def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
-                sys.exit()
+                return
 
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
@@ -313,7 +317,7 @@ def main():
                     game.reset() 
 
         state = game.get_state()
-        action = agent.choose_action(state, game.game_count)
+        action = agent.choose_action(state, game.count)
 
         is_game_over, reward = game.step(action)
 
@@ -329,8 +333,12 @@ def main():
         if is_game_over:
             plot.refresh_score(game.score)
             
-            if game.game_count % PLOT_RATE == 0:
+            if game.count % PLOT_RATE == 0:
                 plot.update()
+            if game.count == LIMIT_GAMES:
+                plot.update()
+                plot.save()
+                return
 
             game.reset()
 
