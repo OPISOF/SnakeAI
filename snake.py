@@ -8,8 +8,8 @@ from torch import nn, optim
 
 SCREEN_WIDTH, SCREEN_HEIGHT = 720, 480
 BLOCK = 20
-FPS = 100
-PLOT_RATE = 100
+FPS = 40
+PLOT_RATE = 200
 
 INNER_LAYER = 512
 TRAINER_GAMMA = 0.89
@@ -148,7 +148,7 @@ class Renderer:
             random.randint(0, 255),
             random.randint(0, 255),
         )
-        self.display = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        self.switch_display()
         self.clock = pygame.time.Clock()
         self.font = pygame.font.Font(None, 24)
 
@@ -172,9 +172,16 @@ class Renderer:
 
         pygame.display.flip()
         self.clock.tick(FPS)
+    
+    def switch_display(self):
+        if self.enabled:
+            self.display = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        else:
+            self.display = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), flags=pygame.HIDDEN)
 
     def switch_render(self):
         self.enabled = not self.enabled
+        self.switch_display()
 
 
 class Agent:
@@ -226,12 +233,14 @@ class Plot:
     def __init__(self):
         plt.ion()
         self.score_series = []
+        self.smooth_score_series = []
         self.mean_score_series = []
 
     def update(self):
         plt.clf()
         plt.plot(self.score_series, marker="", linestyle="-", color="b")
         plt.plot(self.mean_score_series, marker="", linestyle="-", color="r")
+        plt.plot(self.smooth_score_series, marker="", linestyle="-", color="y")
         plt.title("learning...")
         plt.xlabel("Game number")
         plt.ylabel("Score")
@@ -239,13 +248,14 @@ class Plot:
         top_score = max(
             max(self.mean_score_series, default=0), max(self.score_series, default=0)
         )
-        plt.ylim(0, top_score + 5)
+        plt.ylim(0, 150)
         plt.draw()
         plt.pause(0.001)
 
     def refresh_score(self, score):
         self.score_series.append(score)
         self.mean_score_series.append(sum(self.score_series) / len(self.score_series))
+        self.smooth_score_series.append(sum(self.score_series[-50:])/len(self.score_series[-50:]))
 
     def save(self):
         self.update()
@@ -331,5 +341,4 @@ def main():
 
 
 if __name__ == "__main__":
-    for i in range(5):
-        main()
+    main()
