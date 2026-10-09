@@ -142,7 +142,7 @@ class SnakeGame:
 class Renderer:
     def __init__(self):
         pygame.init()
-        self.enabled = True
+        self.enabled = False
         self.snake_colour = (
             random.randint(0, 255),
             random.randint(0, 255),
@@ -280,7 +280,9 @@ def spawn_food(snake):
 
 
 def main():
-    limit_games = int(input("Set game limitation: "))
+    random.seed(10)
+    limit_games = 2000
+
     game = SnakeGame()
     renderer = Renderer()
     agent = Agent()
@@ -329,4 +331,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    for i in range(5):
+        main()
