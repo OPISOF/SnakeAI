@@ -4,9 +4,7 @@ import random
 import matplotlib.pyplot as plt
 import pygame
 import torch
-import torch.nn as nn
-import torch.optim as optim
-
+from torch import nn, optim
 
 SCREEN_WIDTH, SCREEN_HEIGHT = 720, 480
 BLOCK = 20
@@ -39,7 +37,7 @@ class SnakeGame:
 
     def step(self, action):
         reward = SURVIVAL_REWARD
-        
+
         self.decode_turn(action)
         head_x, head_y = self.snake[0]
 
@@ -51,7 +49,7 @@ class SnakeGame:
             head_x += BLOCK
         elif self.direction == "LEFT":
             head_x -= BLOCK
-        
+
         if is_crash(head_x, head_y, self.snake):
             reward = DEATH_REWARD
             return True, reward
@@ -66,7 +64,7 @@ class SnakeGame:
             self.food = spawn_food(self.snake)
 
         return False, reward
- 
+
     def get_state(self):
         head_x, head_y = self.snake[0]
 
@@ -93,19 +91,15 @@ class SnakeGame:
         danger = []
 
         danger.append(is_crash(danger_left[0], danger_left[1], self.snake))
-        danger.append(is_crash(
-            danger_straight[0], danger_straight[1], self.snake)
-        )
-        danger.append(is_crash(
-            danger_right[0], danger_right[1], self.snake)
-        )
+        danger.append(is_crash(danger_straight[0], danger_straight[1], self.snake))
+        danger.append(is_crash(danger_right[0], danger_right[1], self.snake))
 
         general_state = []
 
-        general_state.append((head_x > self.food[0]))
-        general_state.append((head_x < self.food[0]))
-        general_state.append((head_y > self.food[1]))
-        general_state.append((head_y < self.food[1]))
+        general_state.append(head_x > self.food[0])
+        general_state.append(head_x < self.food[0])
+        general_state.append(head_y > self.food[1])
+        general_state.append(head_y < self.food[1])
 
         if self.direction == "RIGHT":
             general_state = [
@@ -144,15 +138,15 @@ class SnakeGame:
         elif action[2] == 1:
             self.direction = COMPASS[(index + 1) % len(COMPASS)]
 
- 
-class Renderer:     
+
+class Renderer:
     def __init__(self):
         pygame.init()
         self.enabled = True
         self.snake_colour = (
             random.randint(0, 255),
             random.randint(0, 255),
-            random.randint(0, 255)
+            random.randint(0, 255),
         )
         self.display = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         self.clock = pygame.time.Clock()
@@ -170,9 +164,7 @@ class Renderer:
             )
 
         pygame.draw.rect(
-                self.display, 'black', pygame.Rect(
-                    game.food[0], game.food[1], BLOCK, BLOCK
-                )
+            self.display, "black", pygame.Rect(game.food[0], game.food[1], BLOCK, BLOCK)
         )
 
         score_text = self.font.render(f"Score: {game.score}", True, "black")
@@ -208,28 +200,19 @@ class Agent:
         final_move[move] = 1
         return final_move
 
-    def agent_train(
-            self, state, action, next_state,
-            reward, is_game_over
-    ):
+    def agent_train(self, state, action, next_state, reward, is_game_over):
         state = torch.tensor(state, dtype=torch.float).unsqueeze(0)
-        next_state = torch.tensor(
-                next_state, dtype=torch.float
-        ).unsqueeze(0)
+        next_state = torch.tensor(next_state, dtype=torch.float).unsqueeze(0)
         action = torch.tensor(action, dtype=torch.long).unsqueeze(0)
         reward = torch.tensor(reward, dtype=torch.float).unsqueeze(0)
-        is_game_over = torch.tensor(
-                is_game_over, dtype=torch.float
-        ).unsqueeze(0)
+        is_game_over = torch.tensor(is_game_over, dtype=torch.float).unsqueeze(0)
 
         pred = self.model(state)
         target = pred.clone()
 
         q_new = reward[0]
         if not is_game_over[0]:
-            q_new = reward[0] + TRAINER_GAMMA * torch.max(
-                    self.model(next_state)
-            )
+            q_new = reward[0] + TRAINER_GAMMA * torch.max(self.model(next_state))
 
         target[0][torch.argmax(action).item()] = q_new
 
@@ -253,26 +236,24 @@ class Plot:
         plt.xlabel("Game number")
         plt.ylabel("Score")
         plt.grid(False)
-        top_score = max(max(self.mean_score_series, default=0),
-                         max(self.score_series, default=0)
-        ) 
+        top_score = max(
+            max(self.mean_score_series, default=0), max(self.score_series, default=0)
+        )
         plt.ylim(0, top_score + 5)
         plt.draw()
         plt.pause(0.001)
-    
+
     def refresh_score(self, score):
         self.score_series.append(score)
-        self.mean_score_series.append(
-                    sum(self.score_series) / len(self.score_series)
-        )
-    
+        self.mean_score_series.append(sum(self.score_series) / len(self.score_series))
+
     def save(self):
         self.update()
 
-        if not os.path.exists('./runs'):
-            os.makedirs('./runs')
+        if not os.path.exists("./runs"):
+            os.makedirs("./runs")
 
-        number = len(os.listdir('./runs'))
+        number = len(os.listdir("./runs"))
         plt.savefig(f"./runs/run{number}")
 
 
@@ -304,7 +285,7 @@ def main():
     renderer = Renderer()
     agent = Agent()
     plot = Plot()
-    
+
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -320,7 +301,7 @@ def main():
                     renderer.switch_render()
 
                 if event.key == pygame.K_BACKSPACE:
-                    game.reset() 
+                    game.reset()
 
         state = game.get_state()
         action = agent.choose_action(state, game.count)
@@ -332,22 +313,20 @@ def main():
 
         next_state = game.get_state()
 
-        agent.agent_train(state, action, next_state,
-                          reward, is_game_over
-        )
+        agent.agent_train(state, action, next_state, reward, is_game_over)
 
         if is_game_over:
             plot.refresh_score(game.score)
-            
+
             if game.count >= limit_games:
                 plot.save()
                 return
 
             if game.count % PLOT_RATE == 0:
                 plot.update()
-            
+
             game.reset()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
