@@ -1,6 +1,5 @@
 import os
 import random
-import sys
 
 import matplotlib.pyplot as plt
 import pygame
@@ -18,7 +17,6 @@ INNER_LAYER = 512
 TRAINER_GAMMA = 0.89
 LEARNING_RATE = 0.0025
 EXPLORATION_GAMES = 1000
-LIMIT_GAMES = 1000
 SURVIVAL_REWARD = 0
 DEATH_REWARD = -10
 EATING_REWARD = 10
@@ -269,8 +267,14 @@ class Plot:
         )
     
     def save(self):
+        self.update()
+
+        if not os.path.exists('./runs'):
+            os.makedirs('./runs')
+
         number = len(os.listdir('./runs'))
         plt.savefig(f"./runs/run{number}")
+
 
 def is_crash(x, y, snake):
     if x >= SCREEN_WIDTH or y >= SCREEN_HEIGHT or x < 0 or y < 0:
@@ -295,6 +299,7 @@ def spawn_food(snake):
 
 
 def main():
+    limit_games = int(input("Set game limitation: "))
     game = SnakeGame()
     renderer = Renderer()
     agent = Agent()
@@ -304,6 +309,7 @@ def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
+                plot.save()
                 return
 
             if event.type == pygame.KEYDOWN:
@@ -333,13 +339,13 @@ def main():
         if is_game_over:
             plot.refresh_score(game.score)
             
-            if game.count % PLOT_RATE == 0:
-                plot.update()
-            if game.count == LIMIT_GAMES:
-                plot.update()
+            if game.count >= limit_games:
                 plot.save()
                 return
 
+            if game.count % PLOT_RATE == 0:
+                plot.update()
+            
             game.reset()
 
 
