@@ -3,6 +3,7 @@ import random
 
 import matplotlib.pyplot as plt
 import pygame
+import tomllib
 import torch
 from torch import nn, optim
 
@@ -11,13 +12,8 @@ BLOCK = 20
 FPS = 40
 PLOT_RATE = 200
 
-INNER_LAYER = 512
-TRAINER_GAMMA = 0.89
-LEARNING_RATE = 0.0025
-EXPLORATION_GAMES = 1000
-SURVIVAL_REWARD = 0
-DEATH_REWARD = -10
-EATING_REWARD = 10
+config_file = open('config.toml', 'rb')
+CONFIG = tomllib.load(config_file)
 
 
 COMPASS = ["UP", "RIGHT", "DOWN", "LEFT"]
@@ -36,7 +32,7 @@ class SnakeGame:
         self.count += 1
 
     def step(self, action):
-        reward = SURVIVAL_REWARD
+        reward = CONFIG['SURVIVAL_REWARD']
 
         self.decode_turn(action)
         head_x, head_y = self.snake[0]
@@ -51,7 +47,7 @@ class SnakeGame:
             head_x -= BLOCK
 
         if is_crash(head_x, head_y, self.snake):
-            reward = DEATH_REWARD
+            reward = CONFIG['DEATH_REWARD']
             return True, reward
 
         self.snake.insert(0, [head_x, head_y])
@@ -60,7 +56,7 @@ class SnakeGame:
             self.snake.pop()
         else:
             self.score += 1
-            reward = EATING_REWARD
+            reward = CONFIG['EATING_REWARD']
             self.food = spawn_food(self.snake)
 
         return False, reward
@@ -187,11 +183,11 @@ class Renderer:
 class Agent:
     def __init__(self):
         self.model = nn.Sequential(
-            nn.Linear(7, INNER_LAYER),
+            nn.Linear(7, CONFIG['INNER_LAYER']),
             nn.ReLU(),
-            nn.Linear(INNER_LAYER, 3),
+            nn.Linear(CONFIG['INNER_LAYER'], 3),
         )
-        self.optimizer = optim.Adam(self.model.parameters(), LEARNING_RATE)
+        self.optimizer = optim.Adam(self.model.parameters(), CONFIG['LEARNING_RATE'])
         self.criterion = nn.MSELoss()
 
     def choose_action(self, state, count):
@@ -201,7 +197,7 @@ class Agent:
         prediction = self.model(state0)
         move = torch.argmax(prediction).item()
 
-        if EXPLORATION_GAMES - count > random.randint(0, EXPLORATION_GAMES):
+        if CONFIG['EXPLORATION_GAMES'] - count > random.randint(0, CONFIG['EXPLORATION_GAMES']):
             move = random.randint(0, 2)
 
         final_move[move] = 1
@@ -219,7 +215,7 @@ class Agent:
 
         q_new = reward[0]
         if not is_game_over[0]:
-            q_new = reward[0] + TRAINER_GAMMA * torch.max(self.model(next_state))
+            q_new = reward[0] + CONFIG['TRAINER_GAMMA'] * torch.max(self.model(next_state))
 
         target[0][torch.argmax(action).item()] = q_new
 
@@ -238,16 +234,13 @@ class Plot:
 
     def update(self):
         plt.clf()
-        plt.plot(self.score_series, marker="", linestyle="-", color="b")
-        plt.plot(self.mean_score_series, marker="", linestyle="-", color="r")
-        plt.plot(self.smooth_score_series, marker="", linestyle="-", color="y")
-        plt.title("learning...")
+        plt.plot(self.score_series, color="b", lw=1)
+        plt.plot(self.mean_score_series, color="r")
+        plt.plot(self.smooth_score_series, color="y")
+        plt.title("Learning...")
         plt.xlabel("Game number")
         plt.ylabel("Score")
         plt.grid(False)
-        top_score = max(
-            max(self.mean_score_series, default=0), max(self.score_series, default=0)
-        )
         plt.ylim(0, 150)
         plt.draw()
         plt.pause(0.001)
