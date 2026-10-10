@@ -180,7 +180,6 @@ class Renderer:
 
 class Agent:
     def __init__(self, config):
-        torch.manual_seed(10)
         self.model = nn.Sequential(
             nn.Linear(7, config["inner_layer"]),
             nn.ReLU(),
@@ -238,8 +237,8 @@ class Plot:
     def update(self):
         plt.clf()
         plt.plot(self.score_series, color="b", lw=1)
-        plt.plot(self.mean_score_series, color="r")
-        plt.plot(self.smooth_score_series, color="y")
+        plt.plot(self.mean_score_series, color="r", lw=2)
+        plt.plot(self.smooth_score_series, color="orange", lw=2)
         plt.title("Learning...")
         plt.xlabel("Game number")
         plt.ylabel("Score")
@@ -292,6 +291,7 @@ def main():
         config = tomllib.load(file)
 
     random.seed(10)
+    torch.manual_seed(10)
 
     game = SnakeGame()
     renderer = Renderer()
