@@ -28,7 +28,7 @@ class SnakeGame:
         self.count += 1
 
     def step(self, action, config):
-        reward = config['survival_reward']
+        reward = config["survival_reward"]
 
         self.decode_turn(action)
         head_x, head_y = self.snake[0]
@@ -43,7 +43,7 @@ class SnakeGame:
             head_x -= BLOCK
 
         if is_crash(head_x, head_y, self.snake):
-            reward = config['death_reward']
+            reward = config["death_reward"]
             return True, reward
 
         self.snake.insert(0, [head_x, head_y])
@@ -52,7 +52,7 @@ class SnakeGame:
             self.snake.pop()
         else:
             self.score += 1
-            reward = config['eating_reward']
+            reward = config["eating_reward"]
             self.food = spawn_food(self.snake)
 
         return False, reward
@@ -164,12 +164,14 @@ class Renderer:
 
         pygame.display.flip()
         self.clock.tick(FPS)
-    
+
     def switch_display(self):
         if self.enabled:
             self.display = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         else:
-            self.display = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), flags=pygame.HIDDEN)
+            self.display = pygame.display.set_mode(
+                (SCREEN_WIDTH, SCREEN_HEIGHT), flags=pygame.HIDDEN
+            )
 
     def switch_render(self):
         self.enabled = not self.enabled
@@ -180,11 +182,11 @@ class Agent:
     def __init__(self, config):
         torch.manual_seed(10)
         self.model = nn.Sequential(
-            nn.Linear(7, config['inner_layer']),
+            nn.Linear(7, config["inner_layer"]),
             nn.ReLU(),
-            nn.Linear(config['inner_layer'], 3),
+            nn.Linear(config["inner_layer"], 3),
         )
-        self.optimizer = optim.Adam(self.model.parameters(), config['learning_rate'])
+        self.optimizer = optim.Adam(self.model.parameters(), config["learning_rate"])
         self.criterion = nn.MSELoss()
 
     def choose_action(self, state, count, config):
@@ -194,13 +196,15 @@ class Agent:
         prediction = self.model(state0)
         move = torch.argmax(prediction).item()
 
-        if config['exploration_games'] - count > random.randint(0, config['exploration_games']):
+        if config["exploration_games"] - count > random.randint(
+            0, config["exploration_games"]
+        ):
             move = random.randint(0, 2)
 
         final_move[move] = 1
         return final_move
 
-    def agent_train(self, state, action, next_state, reward, is_game_over, config):
+    def train(self, state, action, next_state, reward, is_game_over, config):
         state = torch.tensor(state, dtype=torch.float).unsqueeze(0)
         next_state = torch.tensor(next_state, dtype=torch.float).unsqueeze(0)
         action = torch.tensor(action, dtype=torch.long).unsqueeze(0)
@@ -212,7 +216,9 @@ class Agent:
 
         q_new = reward[0]
         if not is_game_over[0]:
-            q_new = reward[0] + config['trainer_gamma'] * torch.max(self.model(next_state))
+            q_new = reward[0] + config["trainer_gamma"] * torch.max(
+                self.model(next_state)
+            )
 
         target[0][torch.argmax(action).item()] = q_new
 
@@ -245,7 +251,9 @@ class Plot:
     def refresh_score(self, score):
         self.score_series.append(score)
         self.mean_score_series.append(sum(self.score_series) / len(self.score_series))
-        self.smooth_score_series.append(sum(self.score_series[-50:])/len(self.score_series[-50:]))
+        self.smooth_score_series.append(
+            sum(self.score_series[-50:]) / len(self.score_series[-50:])
+        )
 
     def save(self):
         self.update()
@@ -301,9 +309,6 @@ def main():
                 if event.key == pygame.K_SPACE:
                     renderer.switch_render()
 
-                if event.key == pygame.K_TAB:
-                    renderer.switch_render()
-
                 if event.key == pygame.K_BACKSPACE:
                     game.reset()
 
@@ -317,12 +322,12 @@ def main():
 
         next_state = game.get_state()
 
-        agent.agent_train(state, action, next_state, reward, is_game_over, config)
+        agent.train(state, action, next_state, reward, is_game_over, config)
 
         if is_game_over:
             plot.refresh_score(game.score)
 
-            if game.count >= config['limit_games']:
+            if game.count >= config["limit_games"]:
                 plot.save()
                 return
 
