@@ -12,10 +12,6 @@ BLOCK = 20
 FPS = 40
 PLOT_RATE = 200
 
-config_file = open('config.toml', 'rb')
-CONFIG = tomllib.load(config_file)
-
-
 COMPASS = ["UP", "RIGHT", "DOWN", "LEFT"]
 
 
@@ -31,8 +27,8 @@ class SnakeGame:
         self.score = 0
         self.count += 1
 
-    def step(self, action):
-        reward = CONFIG['SURVIVAL_REWARD']
+    def step(self, action, config):
+        reward = config['survival_reward']
 
         self.decode_turn(action)
         head_x, head_y = self.snake[0]
@@ -47,7 +43,7 @@ class SnakeGame:
             head_x -= BLOCK
 
         if is_crash(head_x, head_y, self.snake):
-            reward = CONFIG['DEATH_REWARD']
+            reward = config['death_reward']
             return True, reward
 
         self.snake.insert(0, [head_x, head_y])
@@ -56,7 +52,7 @@ class SnakeGame:
             self.snake.pop()
         else:
             self.score += 1
-            reward = CONFIG['EATING_REWARD']
+            reward = config['eating_reward']
             self.food = spawn_food(self.snake)
 
         return False, reward
@@ -181,29 +177,29 @@ class Renderer:
 
 
 class Agent:
-    def __init__(self):
+    def __init__(self, config):
         self.model = nn.Sequential(
-            nn.Linear(7, CONFIG['INNER_LAYER']),
+            nn.Linear(7, config['inner_layer']),
             nn.ReLU(),
-            nn.Linear(CONFIG['INNER_LAYER'], 3),
+            nn.Linear(config['inner_layer'], 3),
         )
-        self.optimizer = optim.Adam(self.model.parameters(), CONFIG['LEARNING_RATE'])
+        self.optimizer = optim.Adam(self.model.parameters(), config['learning_rate'])
         self.criterion = nn.MSELoss()
 
-    def choose_action(self, state, count):
+    def choose_action(self, state, count, config):
         final_move = [0, 0, 0]
         state0 = torch.tensor(state, dtype=torch.float)
 
         prediction = self.model(state0)
         move = torch.argmax(prediction).item()
 
-        if CONFIG['EXPLORATION_GAMES'] - count > random.randint(0, CONFIG['EXPLORATION_GAMES']):
+        if config['exploration_games'] - count > random.randint(0, config['exploration_games']):
             move = random.randint(0, 2)
 
         final_move[move] = 1
         return final_move
 
-    def agent_train(self, state, action, next_state, reward, is_game_over):
+    def agent_train(self, state, action, next_state, reward, is_game_over, config):
         state = torch.tensor(state, dtype=torch.float).unsqueeze(0)
         next_state = torch.tensor(next_state, dtype=torch.float).unsqueeze(0)
         action = torch.tensor(action, dtype=torch.long).unsqueeze(0)
@@ -215,7 +211,7 @@ class Agent:
 
         q_new = reward[0]
         if not is_game_over[0]:
-            q_new = reward[0] + CONFIG['TRAINER_GAMMA'] * torch.max(self.model(next_state))
+            q_new = reward[0] + config['trainer_gamma'] * torch.max(self.model(next_state))
 
         target[0][torch.argmax(action).item()] = q_new
 
@@ -283,12 +279,15 @@ def spawn_food(snake):
 
 
 def main():
+    with open("config.toml", "rb") as file:
+        config = tomllib.load(file)
+
     random.seed(10)
     limit_games = 2000
 
     game = SnakeGame()
     renderer = Renderer()
-    agent = Agent()
+    agent = Agent(config)
     plot = Plot()
 
     while True:
@@ -309,16 +308,16 @@ def main():
                     game.reset()
 
         state = game.get_state()
-        action = agent.choose_action(state, game.count)
+        action = agent.choose_action(state, game.count, config)
 
-        is_game_over, reward = game.step(action)
+        is_game_over, reward = game.step(action, config)
 
         if renderer.enabled:
             renderer.draw_frame(game)
 
         next_state = game.get_state()
 
-        agent.agent_train(state, action, next_state, reward, is_game_over)
+        agent.agent_train(state, action, next_state, reward, is_game_over, config)
 
         if is_game_over:
             plot.refresh_score(game.score)

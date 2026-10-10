@@ -1,7 +1,7 @@
-INNER_LAYER = 512
-TRAINER_GAMMA = 0.89
-LEARNING_RATE = 0.0025
-EXPLORATION_GAMES = 1000
-SURVIVAL_REWARD = 0
-DEATH_REWARD = -10
-EATING_REWARD = 10
+inner_layer = 512
+trainer_gamma = 0.89
+learning_rate = 0.0025
+exploration_games = 1000
+survival_reward = 0
+death_reward = -10
+eating_reward = 10
