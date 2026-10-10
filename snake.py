@@ -1,3 +1,4 @@
+from datetime import datetime
 import os
 import random
 
@@ -260,8 +261,8 @@ class Plot:
         if not os.path.exists("./runs"):
             os.makedirs("./runs")
 
-        number = len(os.listdir("./runs"))
-        plt.savefig(f"./runs/run{number}")
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        plt.savefig(f"./runs/run{timestamp}")
 
 
 def is_crash(x, y, snake):
@@ -302,7 +303,6 @@ def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
-                plot.save()
                 return
 
             if event.type == pygame.KEYDOWN:
