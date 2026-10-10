@@ -290,8 +290,8 @@ def main():
     with open("config.toml", "rb") as file:
         config = tomllib.load(file)
 
-    random.seed(10)
-    torch.manual_seed(10)
+    random.seed(config['seed'])
+    torch.manual_seed(config['seed'])
 
     game = SnakeGame()
     renderer = Renderer()
