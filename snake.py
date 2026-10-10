@@ -178,6 +178,7 @@ class Renderer:
 
 class Agent:
     def __init__(self, config):
+        torch.manual_seed(10)
         self.model = nn.Sequential(
             nn.Linear(7, config['inner_layer']),
             nn.ReLU(),
@@ -283,7 +284,6 @@ def main():
         config = tomllib.load(file)
 
     random.seed(10)
-    limit_games = 2000
 
     game = SnakeGame()
     renderer = Renderer()
@@ -322,7 +322,7 @@ def main():
         if is_game_over:
             plot.refresh_score(game.score)
 
-            if game.count >= limit_games:
+            if game.count >= config['limit_games']:
                 plot.save()
                 return
 

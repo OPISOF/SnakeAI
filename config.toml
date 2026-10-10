@@ -5,3 +5,4 @@ exploration_games = 1000
 survival_reward = 0
 death_reward = -10
 eating_reward = 10
+limit_games = 2000
